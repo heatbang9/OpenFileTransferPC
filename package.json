@@ -1,0 +1,26 @@
+{
+  "name": "open-file-transfer-pc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/main.js",
+  "description": "OpenFileTransfer PC app for macOS and Windows.",
+  "bin": {
+    "oftpc": "./src/cli.js"
+  },
+  "scripts": {
+    "dev": "electron .",
+    "oftpc": "node ./src/cli.js",
+    "smoke": "node ./src/smoke.js",
+    "test": "npm run smoke",
+    "audit:prod": "npm audit --omit=dev"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.14.0",
+    "@grpc/proto-loader": "^0.8.0",
+    "commander": "^14.0.2"
+  },
+  "devDependencies": {
+    "electron": "^39.2.7"
+  }
+}

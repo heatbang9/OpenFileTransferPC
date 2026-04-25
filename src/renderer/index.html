@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenFileTransfer PC</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <h1>OpenFileTransfer PC</h1>
+          <p id="statusText">대기 중</p>
+        </div>
+        <div class="actions">
+          <button id="startServerButton">서버 시작</button>
+          <button id="stopServerButton" class="secondary">서버 중지</button>
+        </div>
+      </header>
+
+      <section class="grid">
+        <section class="panel">
+          <div class="panelHeader">
+            <h2>탐색</h2>
+            <button id="discoverButton">찾기</button>
+          </div>
+          <div id="deviceList" class="list empty">아직 찾은 서버가 없습니다.</div>
+        </section>
+
+        <section class="panel">
+          <div class="panelHeader">
+            <h2>전송</h2>
+            <button id="pickFileButton">파일 선택</button>
+          </div>
+          <dl class="details">
+            <div>
+              <dt>선택 서버</dt>
+              <dd id="selectedDevice">없음</dd>
+            </div>
+            <div>
+              <dt>선택 파일</dt>
+              <dd id="selectedFile">없음</dd>
+            </div>
+          </dl>
+          <button id="sendButton" class="primary">보내기</button>
+        </section>
+
+        <section class="panel wide">
+          <div class="panelHeader">
+            <h2>서버 수신함</h2>
+            <button id="refreshInboxButton">새로고침</button>
+          </div>
+          <div id="inboxList" class="list empty">조회할 서버를 선택하세요.</div>
+        </section>
+      </section>
+    </main>
+    <script src="./renderer.js"></script>
+  </body>
+</html>
+
