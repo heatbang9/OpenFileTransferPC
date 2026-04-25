@@ -1,5 +1,7 @@
 # OpenFileTransfer PC
 
+![OpenFileTransfer PC icon](assets/brand/openfiletransfer-icon-512.png)
+
 macOS와 Windows를 우선 대상으로 하는 OpenFileTransfer PC 앱입니다.
 
 ## 현재 선택
@@ -32,6 +34,8 @@ npm run oftpc -- client discover
 ## 디자인 콘셉트
 
 앱 아이콘은 연한 민트색 둥근 배경, 태극형 양방향 흐름, 위/아래 화살표를 조합했습니다. UI도 같은 민트/틸 색상과 8px radius 버튼으로 맞췄습니다.
+
+자세한 디자인 가이드는 [docs/brand-design.md](docs/brand-design.md)를 참고하세요.
 
 브랜드 자산:
 
