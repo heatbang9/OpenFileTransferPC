@@ -33,13 +33,14 @@ npm run oftpc -- client discover
 
 ## 디자인 콘셉트
 
-앱 아이콘은 연한 민트색 둥근 배경 위에 상단 우측에서 좌측으로 흐르는 화살표와 하단 좌측에서 우측으로 흐르는 화살표를 반반 맞물린 태극형 전송 마크로 조합했습니다. UI도 같은 민트/틸 색상과 8px radius 버튼으로 맞췄습니다.
+앱 아이콘은 이미지 생성 모델로 만든 민트색 파일 전송 아이콘을 사용합니다. 상단에는 우측에서 좌측으로 흐르는 큰 화살표, 하단에는 좌측에서 우측으로 흐르는 큰 화살표, 중앙에는 파일 문서가 있어 파일 전달 앱이라는 의미가 바로 보이도록 했습니다. UI도 같은 민트/틸 색상과 8px radius 버튼으로 맞췄습니다.
 
 자세한 디자인 가이드는 [docs/brand-design.md](docs/brand-design.md)를 참고하세요.
 
 브랜드 자산:
 
 - `assets/brand/openfiletransfer-mark.svg`
+- `assets/brand/openfiletransfer-icon-generated.png`
 - `assets/brand/openfiletransfer-icon-1024.png`
 - `assets/brand/openfiletransfer-icon-512.png`
 
