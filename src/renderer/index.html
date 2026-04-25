@@ -9,13 +9,16 @@
   <body>
     <main class="shell">
       <header class="topbar">
-        <div>
-          <h1>OpenFileTransfer PC</h1>
-          <p id="statusText">대기 중</p>
+        <div class="brandBlock">
+          <img class="brandMark" src="../../assets/brand/openfiletransfer-mark.svg" alt="" />
+          <div>
+            <h1>OpenFileTransfer PC</h1>
+            <p id="statusText">대기 중</p>
+          </div>
         </div>
         <div class="actions">
-          <button id="startServerButton">서버 시작</button>
-          <button id="stopServerButton" class="secondary">서버 중지</button>
+          <button id="startServerButton"><span class="buttonIcon iconServer"></span>서버 시작</button>
+          <button id="stopServerButton" class="secondary"><span class="buttonIcon iconStop"></span>서버 중지</button>
         </div>
       </header>
 
@@ -23,7 +26,7 @@
         <section class="panel">
           <div class="panelHeader">
             <h2>탐색</h2>
-            <button id="discoverButton">찾기</button>
+            <button id="discoverButton"><span class="buttonIcon iconSearch"></span>찾기</button>
           </div>
           <div id="deviceList" class="list empty">아직 찾은 서버가 없습니다.</div>
         </section>
@@ -31,7 +34,7 @@
         <section class="panel">
           <div class="panelHeader">
             <h2>전송</h2>
-            <button id="pickFileButton">파일 선택</button>
+            <button id="pickFileButton"><span class="buttonIcon iconFile"></span>파일 선택</button>
           </div>
           <dl class="details">
             <div>
@@ -43,13 +46,13 @@
               <dd id="selectedFile">없음</dd>
             </div>
           </dl>
-          <button id="sendButton" class="primary">보내기</button>
+          <button id="sendButton" class="primary"><span class="buttonIcon iconTransfer"></span>보내기</button>
         </section>
 
         <section class="panel wide">
           <div class="panelHeader">
             <h2>서버 수신함</h2>
-            <button id="refreshInboxButton">새로고침</button>
+            <button id="refreshInboxButton"><span class="buttonIcon iconInbox"></span>새로고침</button>
           </div>
           <div id="inboxList" class="list empty">조회할 서버를 선택하세요.</div>
         </section>
@@ -58,4 +61,3 @@
     <script src="./renderer.js"></script>
   </body>
 </html>
-

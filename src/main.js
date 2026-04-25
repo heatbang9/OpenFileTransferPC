@@ -16,6 +16,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 620,
     title: "OpenFileTransfer PC",
+    icon: path.join(__dirname, "..", "assets", "brand", "openfiletransfer-icon-512.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -84,4 +85,3 @@ app.on("before-quit", async (event) => {
   runningServer = undefined;
   app.quit();
 });
-

@@ -1,7 +1,17 @@
 :root {
-  color: #172033;
-  background: #f7f8fb;
+  color: #15372f;
+  background: #f7fffb;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mint-50: #e9fff6;
+  --mint-100: #d8f8e8;
+  --mint-300: #bfefd9;
+  --mint-500: #5ed6a3;
+  --mint-600: #2bbf8a;
+  --teal-700: #147d67;
+  --teal-900: #0a5c4d;
+  --ink: #15372f;
+  --line: #c7eadb;
+  --surface: #ffffff;
 }
 
 * {
@@ -14,10 +24,14 @@ body {
 
 button {
   min-height: 36px;
-  border: 1px solid #c8cfdb;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
-  color: #172033;
+  background: var(--surface);
+  color: var(--ink);
   font: inherit;
   font-weight: 650;
   padding: 0 14px;
@@ -31,13 +45,13 @@ button:disabled {
 
 .primary {
   width: 100%;
-  background: #176b87;
+  background: var(--teal-700);
   color: #ffffff;
-  border-color: #176b87;
+  border-color: var(--teal-700);
 }
 
 .secondary {
-  color: #4c5c73;
+  color: #3b6658;
 }
 
 .shell {
@@ -51,6 +65,21 @@ button:disabled {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 20px;
+}
+
+.brandBlock {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.brandMark {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
+  border-radius: 18px;
+  box-shadow: 0 12px 30px rgb(20 125 103 / 14%);
 }
 
 h1,
@@ -70,7 +99,7 @@ h2 {
 
 #statusText {
   margin-top: 6px;
-  color: #5b6678;
+  color: #517165;
 }
 
 .actions,
@@ -88,10 +117,11 @@ h2 {
 
 .panel {
   min-height: 260px;
-  border: 1px solid #dce1ea;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface);
   padding: 16px;
+  box-shadow: 0 12px 32px rgb(20 125 103 / 7%);
 }
 
 .wide {
@@ -111,29 +141,30 @@ h2 {
 .empty {
   place-items: center;
   min-height: 160px;
-  color: #667085;
-  border: 1px dashed #cfd6e2;
+  color: #587468;
+  border: 1px dashed var(--mint-300);
   border-radius: 8px;
+  background: #fbfffd;
 }
 
 .item {
   display: grid;
   gap: 4px;
   width: 100%;
-  border: 1px solid #dce1ea;
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px;
-  background: #fbfcfe;
+  background: #fbfffd;
   text-align: left;
 }
 
 .item.selected {
-  border-color: #176b87;
-  background: #edf8fb;
+  border-color: var(--teal-700);
+  background: var(--mint-50);
 }
 
 .muted {
-  color: #64748b;
+  color: #5f7c70;
   font-size: 13px;
 }
 
@@ -149,7 +180,7 @@ h2 {
 }
 
 dt {
-  color: #64748b;
+  color: #5f7c70;
   font-size: 12px;
   font-weight: 700;
 }
@@ -157,6 +188,38 @@ dt {
 dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.buttonIcon {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+.iconServer {
+  clip-path: path("M3 4h12a2 2 0 0 1 2 2v3H1V6a2 2 0 0 1 2-2Zm-2 7h16v1a2 2 0 0 1-2 2h-4v2h3v2H4v-2h3v-2H3a2 2 0 0 1-2-2v-1Z");
+}
+
+.iconStop {
+  clip-path: inset(4px round 3px);
+}
+
+.iconSearch {
+  clip-path: path("M8 2a6 6 0 0 1 4.6 9.8l3.3 3.3-1.8 1.8-3.3-3.3A6 6 0 1 1 8 2Zm0 2.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z");
+}
+
+.iconFile {
+  clip-path: path("M4 1h7l4 4v12H4V1Zm7 1.8V6h3.2L11 2.8ZM6 9v2h7V9H6Zm0 4v2h7v-2H6Z");
+}
+
+.iconTransfer {
+  clip-path: path("M9 1 4 6h3v5h4V6h3L9 1ZM4 12l5 5 5-5h-3V7H7v5H4Z");
+}
+
+.iconInbox {
+  clip-path: path("M3 3h12l2 7v5a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-5l2-7Zm1.5 2-1 4H6l1.2 2h3.6L12 9h2.5l-1-4h-9Z");
 }
 
 @media (max-width: 860px) {
@@ -170,8 +233,12 @@ dd {
     flex-direction: column;
   }
 
+  .brandMark {
+    width: 56px;
+    height: 56px;
+  }
+
   .actions {
     flex-wrap: wrap;
   }
 }
-
