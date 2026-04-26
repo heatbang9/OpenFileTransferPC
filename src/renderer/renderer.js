@@ -6,9 +6,12 @@ let selectedFile;
 const statusText = document.querySelector("#statusText");
 const deviceList = document.querySelector("#deviceList");
 const inboxList = document.querySelector("#inboxList");
+const clientList = document.querySelector("#clientList");
+const eventList = document.querySelector("#eventList");
 const selectedDeviceText = document.querySelector("#selectedDevice");
 const selectedFileText = document.querySelector("#selectedFile");
 const sendButton = document.querySelector("#sendButton");
+const events = [];
 
 function setStatus(text) {
   statusText.textContent = text;
@@ -39,6 +42,11 @@ function renderDevices(devices) {
       document.querySelectorAll(".item.selected").forEach((node) => node.classList.remove("selected"));
       button.classList.add("selected");
       updateSendState();
+      api.subscribeEvents(device.address).then(() => {
+        setStatus("원격 서버 이벤트 구독 중");
+      }).catch(() => {
+        setStatus("원격 서버 이벤트 구독 실패");
+      });
       refreshInbox();
     });
     return button;
@@ -64,6 +72,54 @@ function renderInbox(files) {
   }));
 }
 
+function renderClients(clients) {
+  if (!clients.length) {
+    clientList.className = "list empty";
+    clientList.textContent = "연결된 클라이언트가 없습니다.";
+    return;
+  }
+
+  clientList.className = "list";
+  clientList.replaceChildren(...clients.map((client) => {
+    const row = document.createElement("div");
+    row.className = "item";
+    row.innerHTML = `
+      <strong>${client.clientName || "이름 없는 클라이언트"}</strong>
+      <span class="muted">${client.clientDeviceId || "device id 없음"} · 이벤트 스트림 ${client.eventStreamOpen ? "열림" : "닫힘"}</span>
+    `;
+    return row;
+  }));
+}
+
+function renderEvents() {
+  if (!events.length) {
+    eventList.className = "list empty";
+    eventList.textContent = "아직 이벤트가 없습니다.";
+    return;
+  }
+
+  eventList.className = "list";
+  eventList.replaceChildren(...events.slice(-20).reverse().map((event) => {
+    const row = document.createElement("div");
+    row.className = "item";
+    const fileText = event.file?.fileName ? ` · ${event.file.fileName}` : "";
+    row.innerHTML = `
+      <strong>${event.type ?? "event"}${fileText}</strong>
+      <span class="muted">${event.message ?? ""}</span>
+    `;
+    return row;
+  }));
+}
+
+async function refreshClients() {
+  renderClients(await api.serverClients());
+}
+
+function addEvent(event, source) {
+  events.push({ ...event, type: `${source}:${event.type}` });
+  renderEvents();
+}
+
 async function refreshInbox() {
   if (!selectedDevice?.address) {
     return;
@@ -78,6 +134,7 @@ document.querySelector("#startServerButton").addEventListener("click", async () 
   setStatus("서버 시작 중");
   const server = await api.startServer({});
   setStatus(`서버 실행 중 · ${server.descriptorUrl}`);
+  await refreshClients();
 });
 
 document.querySelector("#stopServerButton").addEventListener("click", async () => {
@@ -109,5 +166,15 @@ sendButton.addEventListener("click", async () => {
 });
 
 document.querySelector("#refreshInboxButton").addEventListener("click", refreshInbox);
+document.querySelector("#refreshClientsButton").addEventListener("click", refreshClients);
+document.querySelector("#clearEventsButton").addEventListener("click", () => {
+  events.length = 0;
+  renderEvents();
+});
+
+api.onServerEvent((event) => addEvent(event, "내 서버"));
+api.onServerClients(renderClients);
+api.onClientEvent((event) => addEvent(event, "원격 서버"));
 
 updateSendState();
+renderEvents();

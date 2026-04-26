@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { startServer } from "./server.js";
-import { listFiles, receiveFile, sendFile } from "./client.js";
+import { listClients, listFiles, receiveFile, sendFile, subscribeEvents } from "./client.js";
 import { discoverServers } from "./discovery.js";
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "oft-smoke-"));
@@ -25,9 +25,34 @@ try {
     throw new Error("SSDP 탐색에서 테스트 서버를 찾지 못했습니다.");
   }
 
+  let receivedEvent;
+  const subscription = await subscribeEvents("127.0.0.1:39191", (event) => {
+    if (event.type === "file_received") {
+      receivedEvent = event;
+    }
+  }, { name: "Smoke Event Client" });
+
   const receipt = await sendFile("127.0.0.1:39191", samplePath, { name: "Smoke Client" });
   if (!receipt.stored) {
     throw new Error("파일 저장 receipt가 false입니다.");
+  }
+
+  await new Promise((resolve, reject) => {
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      if (receivedEvent) {
+        clearInterval(timer);
+        resolve();
+      } else if (Date.now() - startedAt > 2000) {
+        clearInterval(timer);
+        reject(new Error("서버 이벤트 스트림에서 file_received 이벤트를 받지 못했습니다."));
+      }
+    }, 50);
+  });
+
+  const clients = await listClients("127.0.0.1:39191", { name: "Smoke Inspector" });
+  if (!clients.clients.some((client) => client.eventStreamOpen)) {
+    throw new Error("이벤트 스트림이 열린 클라이언트 상태를 확인하지 못했습니다.");
   }
 
   const list = await listFiles("127.0.0.1:39191");
@@ -42,6 +67,7 @@ try {
     throw new Error("다운로드한 파일 내용이 원본과 다릅니다.");
   }
 
+  subscription.close();
   console.log("PC gRPC 파일 송수신 smoke test를 통과했습니다.");
 } finally {
   await server.close();

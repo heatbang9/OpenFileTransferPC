@@ -49,6 +49,35 @@ export async function listFiles(address) {
   });
 }
 
+export async function listClients(address, options = {}) {
+  const session = await handshake(address, options);
+  return unary(session.client.listClients.bind(session.client), {
+    sessionId: session.sessionId
+  });
+}
+
+export async function subscribeEvents(address, onEvent, options = {}) {
+  const session = await handshake(address, options);
+  const call = session.client.subscribeEvents({
+    sessionId: session.sessionId,
+    clientDeviceId: options.deviceId ?? "",
+    clientName: options.name ?? defaultDeviceName(),
+    eventTypes: options.eventTypes ?? []
+  });
+
+  call.on("data", (event) => onEvent(event));
+  call.on("error", (error) => {
+    if (error.code !== 1) {
+      options.onError?.(error);
+    }
+  });
+
+  return {
+    ...session,
+    close: () => call.cancel()
+  };
+}
+
 export async function sendFile(address, filePath, options = {}) {
   const absolutePath = path.resolve(filePath);
   const stat = fs.statSync(absolutePath);

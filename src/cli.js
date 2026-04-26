@@ -2,7 +2,7 @@
 import { Command } from "commander";
 import { DEFAULT_DESCRIPTOR_PORT, DEFAULT_GRPC_PORT, DEFAULT_RECEIVE_DIR } from "./config.js";
 import { discoverServers } from "./discovery.js";
-import { listFiles, ping, receiveFile, sendFile } from "./client.js";
+import { listClients, listFiles, ping, receiveFile, sendFile, subscribeEvents } from "./client.js";
 import { startServer } from "./server.js";
 
 const program = new Command();
@@ -67,6 +67,26 @@ client
   });
 
 client
+  .command("clients")
+  .requiredOption("--address <host:port>", "gRPC 주소")
+  .action(async (options) => {
+    console.log(JSON.stringify(await listClients(options.address), null, 2));
+  });
+
+client
+  .command("events")
+  .requiredOption("--address <host:port>", "gRPC 주소")
+  .action(async (options) => {
+    const subscription = await subscribeEvents(options.address, (event) => {
+      console.log(JSON.stringify(event));
+    });
+    process.on("SIGINT", () => {
+      subscription.close();
+      process.exit(0);
+    });
+  });
+
+client
   .command("receive")
   .requiredOption("--address <host:port>", "gRPC 주소")
   .requiredOption("--file-id <id>", "받을 file id")
@@ -76,4 +96,3 @@ client
   });
 
 program.parseAsync();
-
