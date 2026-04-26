@@ -1,4 +1,6 @@
 import path from "node:path";
+import fs from "node:fs";
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Tray } from "electron";
 import { discoverServers } from "./discovery.js";
@@ -10,8 +12,23 @@ let mainWindow;
 let tray;
 let runningServer;
 let localServerUnsubscribe;
+let localKnownDevicesUnsubscribe;
 let remoteEventSubscription;
 let isQuitting = false;
+
+function appDeviceProfile() {
+  const profilePath = path.join(app.getPath("userData"), "device-profile.json");
+  if (fs.existsSync(profilePath)) {
+    return JSON.parse(fs.readFileSync(profilePath, "utf8"));
+  }
+  const profile = {
+    deviceId: randomUUID(),
+    name: "OpenFileTransfer PC"
+  };
+  fs.mkdirSync(path.dirname(profilePath), { recursive: true });
+  fs.writeFileSync(profilePath, JSON.stringify(profile, null, 2));
+  return profile;
+}
 
 function serverSummary(server) {
   return {
@@ -111,10 +128,18 @@ async function startAppServer(options) {
   if (runningServer) {
     return serverSummary(runningServer);
   }
-  runningServer = await startServer(options);
+  const profile = appDeviceProfile();
+  runningServer = await startServer({
+    ...options,
+    deviceId: options?.deviceId ?? profile.deviceId,
+    name: options?.name ?? profile.name
+  });
   localServerUnsubscribe = runningServer.onEvent((event) => {
     mainWindow?.webContents.send("server:event", event);
     mainWindow?.webContents.send("server:clients", runningServer.getConnectedClients());
+  });
+  localKnownDevicesUnsubscribe = runningServer.onKnownDevices((devices) => {
+    mainWindow?.webContents.send("server:knownDevices", devices);
   });
   refreshTrayMenu();
   notifyTrayState("서버가 시작되었습니다.");
@@ -127,6 +152,8 @@ async function stopAppServer() {
   }
   localServerUnsubscribe?.();
   localServerUnsubscribe = undefined;
+  localKnownDevicesUnsubscribe?.();
+  localKnownDevicesUnsubscribe = undefined;
   await runningServer.close();
   runningServer = undefined;
   refreshTrayMenu();
@@ -189,14 +216,15 @@ ipcMain.handle("server:stop", async () => {
 });
 
 ipcMain.handle("server:clients", async () => runningServer?.getConnectedClients() ?? []);
+ipcMain.handle("server:knownDevices", async () => runningServer?.getKnownDevices() ?? []);
 ipcMain.handle("client:discover", async (_event, options) => discoverServers(options));
-ipcMain.handle("client:list", async (_event, address) => listFiles(address));
-ipcMain.handle("client:send", async (_event, payload) => sendFile(payload.address, payload.filePath));
+ipcMain.handle("client:list", async (_event, address) => listFiles(address, appDeviceProfile()));
+ipcMain.handle("client:send", async (_event, payload) => sendFile(payload.address, payload.filePath, appDeviceProfile()));
 ipcMain.handle("client:subscribeEvents", async (_event, address) => {
   remoteEventSubscription?.close();
   remoteEventSubscription = await subscribeEvents(address, (event) => {
     mainWindow?.webContents.send("client:event", event);
-  }, { name: "OpenFileTransfer PC UI" });
+  }, appDeviceProfile());
   return true;
 });
 ipcMain.handle("client:unsubscribeEvents", async () => {

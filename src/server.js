@@ -25,6 +25,18 @@ function writeIndex(receiveDir, entries) {
   fs.writeFileSync(path.join(receiveDir, "index.json"), JSON.stringify(entries, null, 2));
 }
 
+function readKnownDevices(receiveDir) {
+  const devicesPath = path.join(receiveDir, "known-devices.json");
+  if (!fs.existsSync(devicesPath)) {
+    return [];
+  }
+  return JSON.parse(fs.readFileSync(devicesPath, "utf8"));
+}
+
+function writeKnownDevices(receiveDir, devices) {
+  fs.writeFileSync(path.join(receiveDir, "known-devices.json"), JSON.stringify(devices, null, 2));
+}
+
 function safeFileName(fileName) {
   return path.basename(fileName || "unnamed.bin").replace(/[^\w.()[\] -]/g, "_");
 }
@@ -47,6 +59,7 @@ export async function startServer(options = {}) {
   const deviceName = options.name ?? defaultDeviceName();
   const sessions = new Map();
   const eventStreams = new Map();
+  const knownDevices = new Map(readKnownDevices(receiveDir).map((device) => [device.clientDeviceId, device]));
   const localEvents = new EventEmitter();
 
   ensureDir(receiveDir);
@@ -72,6 +85,26 @@ export async function startServer(options = {}) {
       lastSeenUnixTimeMs: String(session.lastSeen),
       eventStreamOpen: eventStreams.has(sessionId)
     };
+  }
+
+  function rememberClient(session, extra = {}) {
+    if (!session.clientDeviceId) {
+      return;
+    }
+    const current = knownDevices.get(session.clientDeviceId);
+    const device = {
+      clientDeviceId: session.clientDeviceId,
+      clientName: session.clientName || current?.clientName || "이름 없는 클라이언트",
+      firstSeenUnixTimeMs: current?.firstSeenUnixTimeMs ?? String(session.connectedAt ?? nowMs()),
+      lastSeenUnixTimeMs: String(session.lastSeen ?? nowMs()),
+      lastSessionId: extra.sessionId ?? current?.lastSessionId ?? "",
+      eventStreamOpen: Boolean(extra.eventStreamOpen),
+      transferCount: Number(current?.transferCount ?? 0) + Number(extra.transferCompleted ? 1 : 0),
+      trusted: current?.trusted ?? true
+    };
+    knownDevices.set(session.clientDeviceId, device);
+    writeKnownDevices(receiveDir, [...knownDevices.values()]);
+    localEvents.emit("knownDevices", [...knownDevices.values()]);
   }
 
   function connectedClients() {
@@ -126,6 +159,12 @@ export async function startServer(options = {}) {
           lastSeen: nowMs(),
           expiresAt
         });
+        rememberClient({
+          clientDeviceId: call.request.clientDeviceId,
+          clientName: call.request.clientName,
+          connectedAt: nowMs(),
+          lastSeen: nowMs()
+        }, { sessionId });
         publishEvent("client_connected", `${call.request.clientName || "클라이언트"} 연결됨`, {
           sessionId,
           peerDeviceId: call.request.clientDeviceId,
@@ -152,6 +191,10 @@ export async function startServer(options = {}) {
           session.clientName = call.request.clientName;
         }
         eventStreams.set(call.request.sessionId, call);
+        rememberClient(session, {
+          sessionId: call.request.sessionId,
+          eventStreamOpen: true
+        });
         localEvents.emit("clients", connectedClients());
         call.write({
           eventId: randomUUID(),
@@ -169,6 +212,10 @@ export async function startServer(options = {}) {
           }
           cleaned = true;
           eventStreams.delete(call.request.sessionId);
+          rememberClient(session, {
+            sessionId: call.request.sessionId,
+            eventStreamOpen: false
+          });
           publishEvent("client_disconnected", `${session.clientName || "클라이언트"} 이벤트 스트림 종료`, {
             sessionId: call.request.sessionId,
             peerDeviceId: session.clientDeviceId,
@@ -257,6 +304,13 @@ export async function startServer(options = {}) {
             peerName: session?.clientName ?? "",
             file: publicFileEntry(entry)
           });
+          if (session) {
+            rememberClient(session, {
+              sessionId: [...sessions.entries()].find(([, value]) => value === session)?.[0] ?? "",
+              eventStreamOpen: eventStreams.has([...sessions.entries()].find(([, value]) => value === session)?.[0] ?? ""),
+              transferCompleted: true
+            });
+          }
           callback(null, {
             transferId,
             fileId,
@@ -331,9 +385,14 @@ export async function startServer(options = {}) {
     receiveDir,
     descriptorUrl: descriptor.location,
     getConnectedClients: connectedClients,
+    getKnownDevices: () => [...knownDevices.values()],
     onEvent: (listener) => {
       localEvents.on("event", listener);
       return () => localEvents.off("event", listener);
+    },
+    onKnownDevices: (listener) => {
+      localEvents.on("knownDevices", listener);
+      return () => localEvents.off("knownDevices", listener);
     },
     close: async () => {
       ssdp.close();

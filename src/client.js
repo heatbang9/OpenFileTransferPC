@@ -42,8 +42,8 @@ export async function ping(address) {
   });
 }
 
-export async function listFiles(address) {
-  const session = await handshake(address);
+export async function listFiles(address, options = {}) {
+  const session = await handshake(address, options);
   return unary(session.client.listFiles.bind(session.client), {
     sessionId: session.sessionId
   });

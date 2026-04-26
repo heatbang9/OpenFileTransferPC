@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld("openFileTransfer", {
   startServer: (options) => ipcRenderer.invoke("server:start", options),
   stopServer: () => ipcRenderer.invoke("server:stop"),
   serverClients: () => ipcRenderer.invoke("server:clients"),
+  serverKnownDevices: () => ipcRenderer.invoke("server:knownDevices"),
   discover: (options) => ipcRenderer.invoke("client:discover", options),
   listFiles: (address) => ipcRenderer.invoke("client:list", address),
   sendFile: (payload) => ipcRenderer.invoke("client:send", payload),
@@ -22,6 +23,11 @@ contextBridge.exposeInMainWorld("openFileTransfer", {
     const wrapped = (_event, payload) => listener(payload);
     ipcRenderer.on("server:clients", wrapped);
     return () => ipcRenderer.off("server:clients", wrapped);
+  },
+  onServerKnownDevices: (listener) => {
+    const wrapped = (_event, payload) => listener(payload);
+    ipcRenderer.on("server:knownDevices", wrapped);
+    return () => ipcRenderer.off("server:knownDevices", wrapped);
   },
   onClientEvent: (listener) => {
     const wrapped = (_event, payload) => listener(payload);

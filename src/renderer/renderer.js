@@ -7,6 +7,7 @@ const statusText = document.querySelector("#statusText");
 const deviceList = document.querySelector("#deviceList");
 const inboxList = document.querySelector("#inboxList");
 const clientList = document.querySelector("#clientList");
+const knownDeviceList = document.querySelector("#knownDeviceList");
 const eventList = document.querySelector("#eventList");
 const selectedDeviceText = document.querySelector("#selectedDevice");
 const selectedFileText = document.querySelector("#selectedFile");
@@ -92,6 +93,25 @@ function renderClients(clients) {
   }));
 }
 
+function renderKnownDevices(devices) {
+  if (!devices.length) {
+    knownDeviceList.className = "list empty";
+    knownDeviceList.textContent = "아직 신뢰 디바이스가 없습니다.";
+    return;
+  }
+
+  knownDeviceList.className = "list";
+  knownDeviceList.replaceChildren(...devices.map((device) => {
+    const row = document.createElement("div");
+    row.className = "item";
+    row.innerHTML = `
+      <strong>${device.clientName || "이름 없는 클라이언트"}</strong>
+      <span class="muted">${device.clientDeviceId || "device id 없음"} · 구독 ${device.eventStreamOpen ? "열림" : "닫힘"} · 전송 ${device.transferCount ?? 0}회</span>
+    `;
+    return row;
+  }));
+}
+
 function renderEvents() {
   if (!events.length) {
     eventList.className = "list empty";
@@ -116,6 +136,10 @@ async function refreshClients() {
   renderClients(await api.serverClients());
 }
 
+async function refreshKnownDevices() {
+  renderKnownDevices(await api.serverKnownDevices());
+}
+
 function addEvent(event, source) {
   events.push({ ...event, type: `${source}:${event.type}` });
   renderEvents();
@@ -136,6 +160,7 @@ document.querySelector("#startServerButton").addEventListener("click", async () 
   const server = await api.startServer({});
   setStatus(`서버 실행 중 · ${server.descriptorUrl}`);
   await refreshClients();
+  await refreshKnownDevices();
 });
 
 document.querySelector("#stopServerButton").addEventListener("click", async () => {
@@ -168,6 +193,7 @@ sendButton.addEventListener("click", async () => {
 
 document.querySelector("#refreshInboxButton").addEventListener("click", refreshInbox);
 document.querySelector("#refreshClientsButton").addEventListener("click", refreshClients);
+document.querySelector("#refreshKnownDevicesButton").addEventListener("click", refreshKnownDevices);
 document.querySelector("#clearEventsButton").addEventListener("click", () => {
   events.length = 0;
   renderEvents();
@@ -183,6 +209,7 @@ document.querySelector("#quitButton").addEventListener("click", async () => {
 
 api.onServerEvent((event) => addEvent(event, "내 서버"));
 api.onServerClients(renderClients);
+api.onServerKnownDevices(renderKnownDevices);
 api.onClientEvent((event) => addEvent(event, "원격 서버"));
 api.onTrayState((state) => {
   trayStatusText.textContent = state.message ?? (
