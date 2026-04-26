@@ -1,15 +1,17 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Tray } from "electron";
 import { discoverServers } from "./discovery.js";
 import { listFiles, sendFile, subscribeEvents } from "./client.js";
 import { startServer } from "./server.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let mainWindow;
+let tray;
 let runningServer;
 let localServerUnsubscribe;
 let remoteEventSubscription;
+let isQuitting = false;
 
 function serverSummary(server) {
   return {
@@ -20,6 +22,129 @@ function serverSummary(server) {
     receiveDir: server.receiveDir,
     descriptorUrl: server.descriptorUrl
   };
+}
+
+function notifyTrayState(message) {
+  mainWindow?.webContents.send("app:tray-state", {
+    hidden: mainWindow ? !mainWindow.isVisible() : true,
+    serverRunning: Boolean(runningServer),
+    message
+  });
+}
+
+function showMainWindow() {
+  if (!mainWindow) {
+    createWindow();
+    return;
+  }
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+  mainWindow.show();
+  mainWindow.focus();
+  notifyTrayState("창을 다시 열었습니다.");
+}
+
+function hideMainWindow() {
+  mainWindow?.hide();
+  notifyTrayState("PC 앱이 시스템 트레이에 숨겨졌습니다.");
+}
+
+function refreshTrayMenu() {
+  if (!tray) {
+    return;
+  }
+  const serverRunning = Boolean(runningServer);
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: "OpenFileTransfer 열기",
+      click: showMainWindow
+    },
+    {
+      label: "트레이로 숨기기",
+      enabled: Boolean(mainWindow?.isVisible()),
+      click: hideMainWindow
+    },
+    { type: "separator" },
+    {
+      label: serverRunning ? "서버 실행 중" : "서버 중지됨",
+      enabled: false
+    },
+    {
+      label: "서버 시작",
+      enabled: !serverRunning,
+      click: async () => {
+        await startAppServer({});
+        showMainWindow();
+      }
+    },
+    {
+      label: "서버 중지",
+      enabled: serverRunning,
+      click: async () => {
+        await stopAppServer();
+        notifyTrayState("서버가 중지되었습니다.");
+      }
+    },
+    { type: "separator" },
+    {
+      label: "종료",
+      click: quitApp
+    }
+  ]);
+  tray.setContextMenu(contextMenu);
+  tray.setToolTip(serverRunning ? "OpenFileTransfer PC - 서버 실행 중" : "OpenFileTransfer PC");
+}
+
+function createTray() {
+  if (tray) {
+    return;
+  }
+  const iconPath = path.join(__dirname, "..", "assets", "brand", "openfiletransfer-icon-512.png");
+  const trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 18, height: 18 });
+  tray = new Tray(trayIcon);
+  tray.on("click", showMainWindow);
+  refreshTrayMenu();
+}
+
+async function startAppServer(options) {
+  if (runningServer) {
+    return serverSummary(runningServer);
+  }
+  runningServer = await startServer(options);
+  localServerUnsubscribe = runningServer.onEvent((event) => {
+    mainWindow?.webContents.send("server:event", event);
+    mainWindow?.webContents.send("server:clients", runningServer.getConnectedClients());
+  });
+  refreshTrayMenu();
+  notifyTrayState("서버가 시작되었습니다.");
+  return serverSummary(runningServer);
+}
+
+async function stopAppServer() {
+  if (!runningServer) {
+    return false;
+  }
+  localServerUnsubscribe?.();
+  localServerUnsubscribe = undefined;
+  await runningServer.close();
+  runningServer = undefined;
+  refreshTrayMenu();
+  return true;
+}
+
+async function cleanup() {
+  remoteEventSubscription?.close();
+  remoteEventSubscription = undefined;
+  await stopAppServer();
+  tray?.destroy();
+  tray = undefined;
+}
+
+async function quitApp() {
+  isQuitting = true;
+  await cleanup();
+  app.quit();
 }
 
 function createWindow() {
@@ -37,30 +162,30 @@ function createWindow() {
     }
   });
 
+  mainWindow.on("close", (event) => {
+    if (isQuitting) {
+      return;
+    }
+    event.preventDefault();
+    hideMainWindow();
+  });
+
+  mainWindow.on("show", () => {
+    refreshTrayMenu();
+    notifyTrayState("창이 표시되었습니다.");
+  });
+
+  mainWindow.on("hide", refreshTrayMenu);
+
   mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
 }
 
 ipcMain.handle("server:start", async (_event, options) => {
-  if (runningServer) {
-    return serverSummary(runningServer);
-  }
-  runningServer = await startServer(options);
-  localServerUnsubscribe = runningServer.onEvent((event) => {
-    mainWindow?.webContents.send("server:event", event);
-    mainWindow?.webContents.send("server:clients", runningServer.getConnectedClients());
-  });
-  return serverSummary(runningServer);
+  return startAppServer(options);
 });
 
 ipcMain.handle("server:stop", async () => {
-  if (!runningServer) {
-    return false;
-  }
-  localServerUnsubscribe?.();
-  localServerUnsubscribe = undefined;
-  await runningServer.close();
-  runningServer = undefined;
-  return true;
+  return stopAppServer();
 });
 
 ipcMain.handle("server:clients", async () => runningServer?.getConnectedClients() ?? []);
@@ -87,10 +212,28 @@ ipcMain.handle("dialog:pickFile", async () => {
   return result.canceled ? undefined : result.filePaths[0];
 });
 
-app.whenReady().then(createWindow);
+ipcMain.handle("app:hideToTray", async () => {
+  hideMainWindow();
+  return true;
+});
+
+ipcMain.handle("app:showWindow", async () => {
+  showMainWindow();
+  return true;
+});
+
+ipcMain.handle("app:quit", async () => {
+  await quitApp();
+  return true;
+});
+
+app.whenReady().then(() => {
+  createTray();
+  createWindow();
+});
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
+  if (isQuitting && process.platform !== "darwin") {
     app.quit();
   }
 });
@@ -98,17 +241,15 @@ app.on("window-all-closed", () => {
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
+    return;
   }
+  showMainWindow();
 });
 
 app.on("before-quit", async (event) => {
-  if (!runningServer) {
+  if (isQuitting) {
     return;
   }
   event.preventDefault();
-  localServerUnsubscribe?.();
-  remoteEventSubscription?.close();
-  await runningServer.close();
-  runningServer = undefined;
-  app.quit();
+  await quitApp();
 });

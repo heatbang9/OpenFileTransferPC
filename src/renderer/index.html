@@ -19,6 +19,7 @@
         <div class="actions">
           <button id="startServerButton"><span class="buttonIcon iconServer"></span>서버 시작</button>
           <button id="stopServerButton" class="secondary"><span class="buttonIcon iconStop"></span>서버 중지</button>
+          <button id="hideToTrayButton" class="secondary"><span class="buttonIcon iconTray"></span>트레이로 숨기기</button>
         </div>
       </header>
 
@@ -63,6 +64,20 @@
             <button id="clearEventsButton" class="secondary"><span class="buttonIcon iconStop"></span>지우기</button>
           </div>
           <div id="eventList" class="list empty">서버 이벤트와 선택한 원격 서버 이벤트가 표시됩니다.</div>
+        </section>
+
+        <section class="panel wide">
+          <div class="panelHeader">
+            <h2>트레이 동작</h2>
+            <button id="quitButton" class="secondary"><span class="buttonIcon iconPower"></span>앱 종료</button>
+          </div>
+          <div class="trayHint">
+            <span class="buttonIcon iconTray"></span>
+            <div>
+              <strong>창을 닫으면 앱은 계속 실행됩니다.</strong>
+              <span id="trayStatusText" class="muted">메뉴 막대 또는 작업 표시줄의 OpenFileTransfer 아이콘에서 다시 열 수 있습니다.</span>
+            </div>
+          </div>
         </section>
 
         <section class="panel wide">

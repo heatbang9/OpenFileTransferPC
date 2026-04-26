@@ -10,6 +10,9 @@ contextBridge.exposeInMainWorld("openFileTransfer", {
   subscribeEvents: (address) => ipcRenderer.invoke("client:subscribeEvents", address),
   unsubscribeEvents: () => ipcRenderer.invoke("client:unsubscribeEvents"),
   pickFile: () => ipcRenderer.invoke("dialog:pickFile"),
+  hideToTray: () => ipcRenderer.invoke("app:hideToTray"),
+  showWindow: () => ipcRenderer.invoke("app:showWindow"),
+  quit: () => ipcRenderer.invoke("app:quit"),
   onServerEvent: (listener) => {
     const wrapped = (_event, payload) => listener(payload);
     ipcRenderer.on("server:event", wrapped);
@@ -24,5 +27,10 @@ contextBridge.exposeInMainWorld("openFileTransfer", {
     const wrapped = (_event, payload) => listener(payload);
     ipcRenderer.on("client:event", wrapped);
     return () => ipcRenderer.off("client:event", wrapped);
+  },
+  onTrayState: (listener) => {
+    const wrapped = (_event, payload) => listener(payload);
+    ipcRenderer.on("app:tray-state", wrapped);
+    return () => ipcRenderer.off("app:tray-state", wrapped);
   }
 });

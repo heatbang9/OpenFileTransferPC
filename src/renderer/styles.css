@@ -138,6 +138,28 @@ h2 {
   gap: 10px;
 }
 
+.trayHint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--mint-300);
+  border-radius: 8px;
+  background: #fbfffd;
+  padding: 14px;
+}
+
+.trayHint > .buttonIcon {
+  width: 26px;
+  height: 26px;
+  color: var(--teal-700);
+}
+
+.trayHint div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
 .empty {
   place-items: center;
   min-height: 160px;
@@ -220,6 +242,14 @@ dd {
 
 .iconInbox {
   clip-path: path("M3 3h12l2 7v5a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-5l2-7Zm1.5 2-1 4H6l1.2 2h3.6L12 9h2.5l-1-4h-9Z");
+}
+
+.iconTray {
+  clip-path: path("M3 3h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-3l-3 3-3-3H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm2 3v2h8V6H5Zm0 4v2h5v-2H5Z");
+}
+
+.iconPower {
+  clip-path: path("M8 1h2v8H8V1Zm-3.8 3.2 1.5 1.5A5 5 0 1 0 12.3 5.7l1.5-1.5A7 7 0 1 1 4.2 4.2Z");
 }
 
 @media (max-width: 860px) {

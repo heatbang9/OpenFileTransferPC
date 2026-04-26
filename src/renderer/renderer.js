@@ -11,6 +11,7 @@ const eventList = document.querySelector("#eventList");
 const selectedDeviceText = document.querySelector("#selectedDevice");
 const selectedFileText = document.querySelector("#selectedFile");
 const sendButton = document.querySelector("#sendButton");
+const trayStatusText = document.querySelector("#trayStatusText");
 const events = [];
 
 function setStatus(text) {
@@ -172,9 +173,24 @@ document.querySelector("#clearEventsButton").addEventListener("click", () => {
   renderEvents();
 });
 
+document.querySelector("#hideToTrayButton").addEventListener("click", async () => {
+  await api.hideToTray();
+});
+
+document.querySelector("#quitButton").addEventListener("click", async () => {
+  await api.quit();
+});
+
 api.onServerEvent((event) => addEvent(event, "내 서버"));
 api.onServerClients(renderClients);
 api.onClientEvent((event) => addEvent(event, "원격 서버"));
+api.onTrayState((state) => {
+  trayStatusText.textContent = state.message ?? (
+    state.hidden
+      ? "메뉴 막대 또는 작업 표시줄의 OpenFileTransfer 아이콘에서 다시 열 수 있습니다."
+      : "창이 표시되어 있습니다."
+  );
+});
 
 updateSendState();
 renderEvents();
