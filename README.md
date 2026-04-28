@@ -34,6 +34,8 @@ npm run oftpc -- client discover
 - 구독 중인 클라이언트와 신뢰 디바이스 목록 확인
 - 시스템 트레이 숨김/복귀/종료 메뉴
 - 서버 수신함 목록 조회
+- 송신/수신 진행률 표시
+- 전송/수신 완료 시스템 알림
 
 ## 시스템 트레이 동작
 
@@ -42,8 +44,17 @@ npm run oftpc -- client discover
 - 트레이 메뉴에서 `OpenFileTransfer 열기`, `트레이로 숨기기`, `서버 시작`, `서버 중지`, `종료`를 제공합니다.
 - 서버가 실행 중인 상태로 창을 숨겨도 gRPC 서버와 이벤트 스트림은 유지됩니다.
 - 완전히 종료하려면 UI의 `앱 종료` 버튼이나 트레이 메뉴의 `종료`를 사용합니다.
+- macOS/Windows Electron `Notification` API로 파일 수신 완료와 파일 전송 완료 알림을 표시합니다.
+- Windows 알림 식별을 위해 앱 실행 시 `dev.openfiletransfer.pc` AppUserModelID를 설정합니다.
 
 참고 문서: [Electron Tray API](https://www.electronjs.org/docs/latest/api/tray)
+
+## 전송 진행률
+
+- PC 클라이언트가 원격 서버로 파일을 보낼 때 `전송 진행률` 패널에 송신 퍼센트와 바이트 수가 표시됩니다.
+- PC 서버가 모바일/다른 PC 클라이언트에서 파일을 받을 때 같은 패널에 수신 진행률이 표시됩니다.
+- 원격 클라이언트가 `ReceiveFile`로 PC 서버 수신함 파일을 받아갈 때 서버 UI에는 해당 클라이언트로 보내는 송신 진행률이 표시됩니다.
+- 완료된 항목은 패널에 남아 사용자가 지울 수 있습니다.
 
 ## 현재 동작
 

@@ -9,11 +9,13 @@ const inboxList = document.querySelector("#inboxList");
 const clientList = document.querySelector("#clientList");
 const knownDeviceList = document.querySelector("#knownDeviceList");
 const eventList = document.querySelector("#eventList");
+const transferList = document.querySelector("#transferList");
 const selectedDeviceText = document.querySelector("#selectedDevice");
 const selectedFileText = document.querySelector("#selectedFile");
 const sendButton = document.querySelector("#sendButton");
 const trayStatusText = document.querySelector("#trayStatusText");
 const events = [];
+const transfers = new Map();
 
 function setStatus(text) {
   statusText.textContent = text;
@@ -132,6 +134,57 @@ function renderEvents() {
   }));
 }
 
+function formatBytes(value) {
+  const bytes = Number(value ?? 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "0 B";
+  }
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / (1024 ** index)).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+function renderTransfers() {
+  const items = [...transfers.values()].slice(-20).reverse();
+  if (!items.length) {
+    transferList.className = "list empty";
+    transferList.textContent = "송신/수신 진행률이 여기에 표시됩니다.";
+    return;
+  }
+
+  transferList.className = "list";
+  transferList.replaceChildren(...items.map((transfer) => {
+    const row = document.createElement("div");
+    const percent = Math.max(0, Math.min(100, Math.round((transfer.progress ?? 0) * 100)));
+    const directionText = transfer.direction === "receiving" ? "수신" : "송신";
+    const peerText = transfer.peerName ? ` · ${transfer.peerName}` : "";
+    row.className = `item transferItem ${percent >= 100 ? "complete" : ""}`;
+    row.innerHTML = `
+      <div class="transferTitle">
+        <strong>${directionText} · ${transfer.fileName || "이름 없는 파일"}</strong>
+        <span>${percent}%</span>
+      </div>
+      <div class="progressTrack">
+        <div class="progressFill" style="width: ${percent}%"></div>
+      </div>
+      <span class="muted">${formatBytes(transfer.transferredBytes)} / ${formatBytes(transfer.totalBytes)}${peerText}</span>
+    `;
+    return row;
+  }));
+}
+
+function updateTransferProgress(progress) {
+  const key = progress.transferId
+    || `${progress.source ?? "app"}:${progress.direction}:${progress.fileName}:${progress.totalBytes}`;
+  transfers.set(key, {
+    ...progress,
+    transferredBytes: Number(progress.transferredBytes ?? 0),
+    totalBytes: Number(progress.totalBytes ?? 0),
+    progress: Number(progress.progress ?? 0)
+  });
+  renderTransfers();
+}
+
 async function refreshClients() {
   renderClients(await api.serverClients());
 }
@@ -198,6 +251,10 @@ document.querySelector("#clearEventsButton").addEventListener("click", () => {
   events.length = 0;
   renderEvents();
 });
+document.querySelector("#clearTransfersButton").addEventListener("click", () => {
+  transfers.clear();
+  renderTransfers();
+});
 
 document.querySelector("#hideToTrayButton").addEventListener("click", async () => {
   await api.hideToTray();
@@ -211,6 +268,7 @@ api.onServerEvent((event) => addEvent(event, "내 서버"));
 api.onServerClients(renderClients);
 api.onServerKnownDevices(renderKnownDevices);
 api.onClientEvent((event) => addEvent(event, "원격 서버"));
+api.onTransferProgress(updateTransferProgress);
 api.onTrayState((state) => {
   trayStatusText.textContent = state.message ?? (
     state.hidden
@@ -221,3 +279,4 @@ api.onTrayState((state) => {
 
 updateSendState();
 renderEvents();
+renderTransfers();

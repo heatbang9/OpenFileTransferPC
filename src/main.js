@@ -2,7 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Tray } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, Tray } from "electron";
 import { discoverServers } from "./discovery.js";
 import { listFiles, sendFile, subscribeEvents } from "./client.js";
 import { startServer } from "./server.js";
@@ -13,6 +13,7 @@ let tray;
 let runningServer;
 let localServerUnsubscribe;
 let localKnownDevicesUnsubscribe;
+let localTransferProgressUnsubscribe;
 let remoteEventSubscription;
 let isQuitting = false;
 
@@ -39,6 +40,17 @@ function serverSummary(server) {
     receiveDir: server.receiveDir,
     descriptorUrl: server.descriptorUrl
   };
+}
+
+function showSystemNotification(title, body) {
+  if (!Notification.isSupported()) {
+    return;
+  }
+  new Notification({
+    title,
+    body,
+    icon: path.join(__dirname, "..", "assets", "brand", "openfiletransfer-icon-512.png")
+  }).show();
 }
 
 function notifyTrayState(message) {
@@ -137,9 +149,18 @@ async function startAppServer(options) {
   localServerUnsubscribe = runningServer.onEvent((event) => {
     mainWindow?.webContents.send("server:event", event);
     mainWindow?.webContents.send("server:clients", runningServer.getConnectedClients());
+    if (event.type === "file_received") {
+      showSystemNotification("OpenFileTransfer 수신 완료", event.message || "파일 수신이 완료되었습니다.");
+    }
   });
   localKnownDevicesUnsubscribe = runningServer.onKnownDevices((devices) => {
     mainWindow?.webContents.send("server:knownDevices", devices);
+  });
+  localTransferProgressUnsubscribe = runningServer.onTransferProgress((progress) => {
+    mainWindow?.webContents.send("transfer:progress", {
+      ...progress,
+      source: "server"
+    });
   });
   refreshTrayMenu();
   notifyTrayState("서버가 시작되었습니다.");
@@ -154,6 +175,8 @@ async function stopAppServer() {
   localServerUnsubscribe = undefined;
   localKnownDevicesUnsubscribe?.();
   localKnownDevicesUnsubscribe = undefined;
+  localTransferProgressUnsubscribe?.();
+  localTransferProgressUnsubscribe = undefined;
   await runningServer.close();
   runningServer = undefined;
   refreshTrayMenu();
@@ -219,7 +242,19 @@ ipcMain.handle("server:clients", async () => runningServer?.getConnectedClients(
 ipcMain.handle("server:knownDevices", async () => runningServer?.getKnownDevices() ?? []);
 ipcMain.handle("client:discover", async (_event, options) => discoverServers(options));
 ipcMain.handle("client:list", async (_event, address) => listFiles(address, appDeviceProfile()));
-ipcMain.handle("client:send", async (_event, payload) => sendFile(payload.address, payload.filePath, appDeviceProfile()));
+ipcMain.handle("client:send", async (_event, payload) => {
+  const receipt = await sendFile(payload.address, payload.filePath, {
+    ...appDeviceProfile(),
+    onProgress: (progress) => {
+      mainWindow?.webContents.send("transfer:progress", {
+        ...progress,
+        source: "client"
+      });
+    }
+  });
+  showSystemNotification("OpenFileTransfer 전송 완료", `${receipt.fileName} 전송이 완료되었습니다.`);
+  return receipt;
+});
 ipcMain.handle("client:subscribeEvents", async (_event, address) => {
   remoteEventSubscription?.close();
   remoteEventSubscription = await subscribeEvents(address, (event) => {
@@ -256,6 +291,9 @@ ipcMain.handle("app:quit", async () => {
 });
 
 app.whenReady().then(() => {
+  if (process.platform === "win32") {
+    app.setAppUserModelId("dev.openfiletransfer.pc");
+  }
   createTray();
   createWindow();
 });

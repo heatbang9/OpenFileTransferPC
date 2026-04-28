@@ -34,6 +34,11 @@ contextBridge.exposeInMainWorld("openFileTransfer", {
     ipcRenderer.on("client:event", wrapped);
     return () => ipcRenderer.off("client:event", wrapped);
   },
+  onTransferProgress: (listener) => {
+    const wrapped = (_event, payload) => listener(payload);
+    ipcRenderer.on("transfer:progress", wrapped);
+    return () => ipcRenderer.off("transfer:progress", wrapped);
+  },
   onTrayState: (listener) => {
     const wrapped = (_event, payload) => listener(payload);
     ipcRenderer.on("app:tray-state", wrapped);

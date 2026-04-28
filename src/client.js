@@ -114,6 +114,13 @@ export async function sendFile(address, filePath, options = {}) {
         sha256Hex: ""
       });
       offset += plain.length;
+      options.onProgress?.({
+        direction: "sending",
+        fileName,
+        transferredBytes: offset,
+        totalBytes: stat.size,
+        progress: stat.size === 0 ? 1 : offset / stat.size
+      });
     });
     stream.on("end", () => {
       call.end();
@@ -125,8 +132,8 @@ export async function sendFile(address, filePath, options = {}) {
   });
 }
 
-export async function receiveFile(address, fileId, outDir = ".") {
-  const session = await handshake(address);
+export async function receiveFile(address, fileId, outDir = ".", options = {}) {
+  const session = await handshake(address, options);
   fs.mkdirSync(outDir, { recursive: true });
 
   return new Promise((resolve, reject) => {
@@ -149,6 +156,14 @@ export async function receiveFile(address, fileId, outDir = ".") {
         fs.appendFileSync(outputPath, plain);
         hash.update(plain);
         size += plain.length;
+        const totalSize = Number(chunk.totalSize ?? 0);
+        options.onProgress?.({
+          direction: "receiving",
+          fileName,
+          transferredBytes: size,
+          totalBytes: totalSize,
+          progress: totalSize === 0 ? 0 : size / totalSize
+        });
       } catch (error) {
         call.destroy(error);
       }

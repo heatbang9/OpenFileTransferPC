@@ -185,6 +185,45 @@ h2 {
   background: var(--mint-50);
 }
 
+.transferItem {
+  gap: 8px;
+}
+
+.transferItem.complete {
+  border-color: var(--mint-500);
+}
+
+.transferTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.transferTitle strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.transferTitle span {
+  color: var(--teal-700);
+  font-weight: 800;
+}
+
+.progressTrack {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--mint-100);
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--teal-700);
+  transition: width 160ms ease;
+}
+
 .muted {
   color: #5f7c70;
   font-size: 13px;

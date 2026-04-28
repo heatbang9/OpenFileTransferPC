@@ -136,6 +136,19 @@ export async function startServer(options = {}) {
     return event;
   }
 
+  function publishTransferProgress(progress) {
+    localEvents.emit("transferProgress", {
+      transferId: progress.transferId ?? "",
+      direction: progress.direction,
+      fileName: progress.fileName ?? "",
+      peerDeviceId: progress.peerDeviceId ?? "",
+      peerName: progress.peerName ?? "",
+      transferredBytes: String(progress.transferredBytes ?? 0),
+      totalBytes: String(progress.totalBytes ?? 0),
+      progress: progress.progress ?? 0
+    });
+  }
+
   server.addService(proto.TransferService.service, {
     ping(call, callback) {
       callback(null, {
@@ -272,6 +285,16 @@ export async function startServer(options = {}) {
           fs.appendFileSync(tempPath, plain);
           hash.update(plain);
           size += plain.length;
+          publishTransferProgress({
+            transferId,
+            direction: "receiving",
+            fileName,
+            peerDeviceId: session.clientDeviceId,
+            peerName: session.clientName,
+            transferredBytes: size,
+            totalBytes: Number(chunk.totalSize ?? 0),
+            progress: Number(chunk.totalSize ?? 0) === 0 ? 0 : size / Number(chunk.totalSize)
+          });
         } catch (error) {
           call.destroy(error);
         }
@@ -355,6 +378,16 @@ export async function startServer(options = {}) {
             sha256Hex: entry.sha256Hex
           });
           offset += plain.length;
+          publishTransferProgress({
+            transferId: entry.fileId,
+            direction: "sending",
+            fileName: entry.fileName,
+            peerDeviceId: session.clientDeviceId,
+            peerName: session.clientName,
+            transferredBytes: offset,
+            totalBytes: totalSize,
+            progress: totalSize === 0 ? 1 : offset / totalSize
+          });
         });
         stream.on("end", () => call.end());
         stream.on("error", (error) => call.destroy(error));
@@ -393,6 +426,10 @@ export async function startServer(options = {}) {
     onKnownDevices: (listener) => {
       localEvents.on("knownDevices", listener);
       return () => localEvents.off("knownDevices", listener);
+    },
+    onTransferProgress: (listener) => {
+      localEvents.on("transferProgress", listener);
+      return () => localEvents.off("transferProgress", listener);
     },
     close: async () => {
       ssdp.close();
