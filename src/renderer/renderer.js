@@ -2,6 +2,7 @@ const api = window.openFileTransfer;
 
 let selectedDevice;
 let selectedFile;
+const selectedDevices = new Map();
 
 const statusText = document.querySelector("#statusText");
 const deviceList = document.querySelector("#deviceList");
@@ -22,7 +23,9 @@ function setStatus(text) {
 }
 
 function updateSendState() {
-  sendButton.disabled = !selectedDevice || !selectedFile;
+  sendButton.disabled = selectedDevices.size === 0 || !selectedFile;
+  const label = selectedDevices.size > 1 ? `${selectedDevices.size}개 서버에 보내기` : "보내기";
+  sendButton.innerHTML = `<span class="buttonIcon iconTransfer"></span>${label}`;
 }
 
 function renderDevices(devices) {
@@ -41,17 +44,29 @@ function renderDevices(devices) {
       <span class="muted">${device.address ?? "주소 없음"}</span>
     `;
     button.addEventListener("click", () => {
-      selectedDevice = device;
-      selectedDeviceText.textContent = `${device.deviceName ?? "서버"} (${device.address})`;
-      document.querySelectorAll(".item.selected").forEach((node) => node.classList.remove("selected"));
-      button.classList.add("selected");
+      const key = device.address ?? device.deviceId;
+      if (selectedDevices.has(key)) {
+        selectedDevices.delete(key);
+        button.classList.remove("selected");
+      } else {
+        selectedDevices.set(key, device);
+        selectedDevice = device;
+        button.classList.add("selected");
+      }
+      const selectedNames = [...selectedDevices.values()].map((item) => item.deviceName ?? item.address);
+      selectedDevice = [...selectedDevices.values()].at(-1);
+      selectedDeviceText.textContent = selectedNames.length
+        ? selectedNames.join(", ")
+        : "없음";
       updateSendState();
-      api.subscribeEvents(device.address).then(() => {
-        setStatus("원격 서버 이벤트 구독 중");
-      }).catch(() => {
-        setStatus("원격 서버 이벤트 구독 실패");
-      });
-      refreshInbox();
+      if (selectedDevice?.address) {
+        api.subscribeEvents(selectedDevice.address).then(() => {
+          setStatus("원격 서버 이벤트 구독 중");
+        }).catch(() => {
+          setStatus("원격 서버 이벤트 구독 실패");
+        });
+        refreshInbox();
+      }
     });
     return button;
   }));
@@ -106,10 +121,27 @@ function renderKnownDevices(devices) {
   knownDeviceList.replaceChildren(...devices.map((device) => {
     const row = document.createElement("div");
     row.className = "item";
+    const trusted = device.trusted === true;
     row.innerHTML = `
-      <strong>${device.clientName || "이름 없는 클라이언트"}</strong>
+      <div class="itemHeader">
+        <strong>${device.clientName || "이름 없는 클라이언트"}</strong>
+        <span class="trustBadge ${trusted ? "trusted" : "untrusted"}">${trusted ? "승인됨" : "승인 필요"}</span>
+      </div>
       <span class="muted">${device.clientDeviceId || "device id 없음"} · 구독 ${device.eventStreamOpen ? "열림" : "닫힘"} · 전송 ${device.transferCount ?? 0}회</span>
+      <div class="itemActions">
+        <button class="${trusted ? "secondary" : ""}" data-device-id="${device.clientDeviceId}" data-trusted="${trusted ? "false" : "true"}">
+          ${trusted ? "승인 해제" : "화이트리스트 승인"}
+        </button>
+      </div>
     `;
+    row.querySelector("button").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      await api.setDeviceTrust({
+        clientDeviceId: button.dataset.deviceId,
+        trusted: button.dataset.trusted === "true"
+      });
+      await refreshKnownDevices();
+    });
     return row;
   }));
 }
@@ -198,6 +230,14 @@ function addEvent(event, source) {
   renderEvents();
 }
 
+function addTransferRequest(request) {
+  events.push({
+    type: "승인 요청",
+    message: `${request.peerName} · ${request.fileName || "이름 없는 파일"}`
+  });
+  renderEvents();
+}
+
 async function refreshInbox() {
   if (!selectedDevice?.address) {
     return;
@@ -223,6 +263,10 @@ document.querySelector("#stopServerButton").addEventListener("click", async () =
 
 document.querySelector("#discoverButton").addEventListener("click", async () => {
   setStatus("서버 탐색 중");
+  selectedDevices.clear();
+  selectedDevice = undefined;
+  selectedDeviceText.textContent = "없음";
+  updateSendState();
   const devices = await api.discover({ timeoutMs: 2200 });
   renderDevices(devices);
   setStatus(`탐색 완료 · ${devices.length}개`);
@@ -235,12 +279,16 @@ document.querySelector("#pickFileButton").addEventListener("click", async () => 
 });
 
 sendButton.addEventListener("click", async () => {
-  if (!selectedDevice || !selectedFile) {
+  if (!selectedDevices.size || !selectedFile) {
     return;
   }
-  setStatus("파일 전송 중");
-  await api.sendFile({ address: selectedDevice.address, filePath: selectedFile });
-  setStatus("파일 전송 완료");
+  const targets = [...selectedDevices.values()].map((device) => device.address).filter(Boolean);
+  setStatus(`파일 전송 중 · 대상 ${targets.length}개`);
+  const results = targets.length === 1
+    ? [await api.sendFile({ address: targets[0], filePath: selectedFile }).then((receipt) => ({ ok: true, receipt })).catch((error) => ({ ok: false, error: String(error?.message ?? error) }))]
+    : await api.sendFiles({ addresses: targets, filePath: selectedFile });
+  const successCount = results.filter((result) => result.ok).length;
+  setStatus(`파일 전송 완료 · 성공 ${successCount}/${targets.length}`);
   await refreshInbox();
 });
 
@@ -269,6 +317,7 @@ api.onServerClients(renderClients);
 api.onServerKnownDevices(renderKnownDevices);
 api.onClientEvent((event) => addEvent(event, "원격 서버"));
 api.onTransferProgress(updateTransferProgress);
+api.onTransferRequest(addTransferRequest);
 api.onTrayState((state) => {
   trayStatusText.textContent = state.message ?? (
     state.hidden

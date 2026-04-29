@@ -5,9 +5,11 @@ contextBridge.exposeInMainWorld("openFileTransfer", {
   stopServer: () => ipcRenderer.invoke("server:stop"),
   serverClients: () => ipcRenderer.invoke("server:clients"),
   serverKnownDevices: () => ipcRenderer.invoke("server:knownDevices"),
+  setDeviceTrust: (payload) => ipcRenderer.invoke("server:setDeviceTrust", payload),
   discover: (options) => ipcRenderer.invoke("client:discover", options),
   listFiles: (address) => ipcRenderer.invoke("client:list", address),
   sendFile: (payload) => ipcRenderer.invoke("client:send", payload),
+  sendFiles: (payload) => ipcRenderer.invoke("client:sendMany", payload),
   subscribeEvents: (address) => ipcRenderer.invoke("client:subscribeEvents", address),
   unsubscribeEvents: () => ipcRenderer.invoke("client:unsubscribeEvents"),
   pickFile: () => ipcRenderer.invoke("dialog:pickFile"),
@@ -38,6 +40,11 @@ contextBridge.exposeInMainWorld("openFileTransfer", {
     const wrapped = (_event, payload) => listener(payload);
     ipcRenderer.on("transfer:progress", wrapped);
     return () => ipcRenderer.off("transfer:progress", wrapped);
+  },
+  onTransferRequest: (listener) => {
+    const wrapped = (_event, payload) => listener(payload);
+    ipcRenderer.on("transfer:request", wrapped);
+    return () => ipcRenderer.off("transfer:request", wrapped);
   },
   onTrayState: (listener) => {
     const wrapped = (_event, payload) => listener(payload);

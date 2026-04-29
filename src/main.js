@@ -14,6 +14,7 @@ let runningServer;
 let localServerUnsubscribe;
 let localKnownDevicesUnsubscribe;
 let localTransferProgressUnsubscribe;
+let localTransferRequestUnsubscribe;
 let remoteEventSubscription;
 let isQuitting = false;
 
@@ -51,6 +52,30 @@ function showSystemNotification(title, body) {
     body,
     icon: path.join(__dirname, "..", "assets", "brand", "openfiletransfer-icon-512.png")
   }).show();
+}
+
+async function confirmTransferRequest(request) {
+  showMainWindow();
+  showSystemNotification("OpenFileTransfer 승인 요청", `${request.peerName}의 파일 전송 요청이 있습니다.`);
+  const directionText = request.direction === "sending" ? "서버 파일 다운로드" : "파일 업로드";
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: "question",
+    buttons: ["허용", "취소"],
+    defaultId: 0,
+    cancelId: 1,
+    title: "전송 승인",
+    message: "화이트리스트에 없는 디바이스입니다.",
+    detail: [
+      `디바이스: ${request.peerName}`,
+      `UUID: ${request.peerDeviceId || "없음"}`,
+      `동작: ${directionText}`,
+      `파일: ${request.fileName || "이름 없는 파일"}`,
+      `크기: ${request.totalBytes || 0} bytes`,
+      "",
+      "이번 전송을 허용할까요?"
+    ].join("\n")
+  });
+  return result.response === 0;
 }
 
 function notifyTrayState(message) {
@@ -144,7 +169,9 @@ async function startAppServer(options) {
   runningServer = await startServer({
     ...options,
     deviceId: options?.deviceId ?? profile.deviceId,
-    name: options?.name ?? profile.name
+    name: options?.name ?? profile.name,
+    requireApprovalForUntrustedDevices: true,
+    onTransferApprovalRequest: confirmTransferRequest
   });
   localServerUnsubscribe = runningServer.onEvent((event) => {
     mainWindow?.webContents.send("server:event", event);
@@ -162,6 +189,9 @@ async function startAppServer(options) {
       source: "server"
     });
   });
+  localTransferRequestUnsubscribe = runningServer.onTransferRequest((request) => {
+    mainWindow?.webContents.send("transfer:request", request);
+  });
   refreshTrayMenu();
   notifyTrayState("서버가 시작되었습니다.");
   return serverSummary(runningServer);
@@ -177,6 +207,8 @@ async function stopAppServer() {
   localKnownDevicesUnsubscribe = undefined;
   localTransferProgressUnsubscribe?.();
   localTransferProgressUnsubscribe = undefined;
+  localTransferRequestUnsubscribe?.();
+  localTransferRequestUnsubscribe = undefined;
   await runningServer.close();
   runningServer = undefined;
   refreshTrayMenu();
@@ -240,6 +272,9 @@ ipcMain.handle("server:stop", async () => {
 
 ipcMain.handle("server:clients", async () => runningServer?.getConnectedClients() ?? []);
 ipcMain.handle("server:knownDevices", async () => runningServer?.getKnownDevices() ?? []);
+ipcMain.handle("server:setDeviceTrust", async (_event, payload) => {
+  return runningServer?.setKnownDeviceTrust(payload.clientDeviceId, payload.trusted);
+});
 ipcMain.handle("client:discover", async (_event, options) => discoverServers(options));
 ipcMain.handle("client:list", async (_event, address) => listFiles(address, appDeviceProfile()));
 ipcMain.handle("client:send", async (_event, payload) => {
@@ -254,6 +289,30 @@ ipcMain.handle("client:send", async (_event, payload) => {
   });
   showSystemNotification("OpenFileTransfer 전송 완료", `${receipt.fileName} 전송이 완료되었습니다.`);
   return receipt;
+});
+ipcMain.handle("client:sendMany", async (_event, payload) => {
+  const profile = appDeviceProfile();
+  const targets = payload.addresses ?? [];
+  const results = await Promise.allSettled(targets.map((address) => sendFile(address, payload.filePath, {
+    ...profile,
+    onProgress: (progress) => {
+      mainWindow?.webContents.send("transfer:progress", {
+        ...progress,
+        source: `client:${address}`,
+        peerName: address
+      });
+    }
+  })));
+  const successCount = results.filter((result) => result.status === "fulfilled").length;
+  if (successCount > 0) {
+    showSystemNotification("OpenFileTransfer 전송 완료", `${successCount}/${targets.length}개 대상 전송이 완료되었습니다.`);
+  }
+  return results.map((result, index) => ({
+    address: targets[index],
+    ok: result.status === "fulfilled",
+    receipt: result.status === "fulfilled" ? result.value : undefined,
+    error: result.status === "rejected" ? String(result.reason?.message ?? result.reason) : undefined
+  }));
 });
 ipcMain.handle("client:subscribeEvents", async (_event, address) => {
   remoteEventSubscription?.close();

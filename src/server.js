@@ -57,6 +57,7 @@ export async function startServer(options = {}) {
   const receiveDir = path.resolve(options.receiveDir ?? DEFAULT_RECEIVE_DIR);
   const deviceId = options.deviceId ?? randomUUID();
   const deviceName = options.name ?? defaultDeviceName();
+  const requireApprovalForUntrustedDevices = Boolean(options.requireApprovalForUntrustedDevices);
   const sessions = new Map();
   const eventStreams = new Map();
   const knownDevices = new Map(readKnownDevices(receiveDir).map((device) => [device.clientDeviceId, device]));
@@ -100,11 +101,42 @@ export async function startServer(options = {}) {
       lastSessionId: extra.sessionId ?? current?.lastSessionId ?? "",
       eventStreamOpen: Boolean(extra.eventStreamOpen),
       transferCount: Number(current?.transferCount ?? 0) + Number(extra.transferCompleted ? 1 : 0),
-      trusted: current?.trusted ?? true
+      trusted: Boolean(current?.trusted)
     };
     knownDevices.set(session.clientDeviceId, device);
     writeKnownDevices(receiveDir, [...knownDevices.values()]);
     localEvents.emit("knownDevices", [...knownDevices.values()]);
+  }
+
+  function setKnownDeviceTrust(clientDeviceId, trusted) {
+    const current = knownDevices.get(clientDeviceId);
+    if (!current) {
+      throw new Error("알 수 없는 디바이스입니다.");
+    }
+    const next = {
+      ...current,
+      trusted: Boolean(trusted),
+      lastSeenUnixTimeMs: current.lastSeenUnixTimeMs ?? String(nowMs())
+    };
+    knownDevices.set(clientDeviceId, next);
+    writeKnownDevices(receiveDir, [...knownDevices.values()]);
+    localEvents.emit("knownDevices", [...knownDevices.values()]);
+    publishEvent(
+      trusted ? "device_trusted" : "device_untrusted",
+      `${next.clientName || "디바이스"} ${trusted ? "승인됨" : "승인 해제됨"}`,
+      {
+        peerDeviceId: next.clientDeviceId,
+        peerName: next.clientName
+      }
+    );
+    return next;
+  }
+
+  function isTrusted(session) {
+    if (!session?.clientDeviceId) {
+      return false;
+    }
+    return knownDevices.get(session.clientDeviceId)?.trusted === true;
   }
 
   function connectedClients() {
@@ -147,6 +179,38 @@ export async function startServer(options = {}) {
       totalBytes: String(progress.totalBytes ?? 0),
       progress: progress.progress ?? 0
     });
+  }
+
+  async function requestTransferApproval(request) {
+    if (!requireApprovalForUntrustedDevices || isTrusted(request.session)) {
+      return true;
+    }
+    const payload = {
+      requestId: randomUUID(),
+      direction: request.direction,
+      fileName: request.fileName ?? "",
+      totalBytes: String(request.totalBytes ?? 0),
+      peerDeviceId: request.session.clientDeviceId ?? "",
+      peerName: request.session.clientName ?? "이름 없는 디바이스",
+      unixTimeMs: String(nowMs())
+    };
+    localEvents.emit("transferRequest", payload);
+    publishEvent("transfer_approval_requested", `${payload.peerName} 전송 승인 대기`, {
+      peerDeviceId: payload.peerDeviceId,
+      peerName: payload.peerName
+    });
+    const approved = await options.onTransferApprovalRequest?.(payload);
+    localEvents.emit("transferRequestResolved", {
+      ...payload,
+      approved: Boolean(approved)
+    });
+    if (!approved) {
+      publishEvent("transfer_rejected", `${payload.peerName} 전송 거부됨`, {
+        peerDeviceId: payload.peerDeviceId,
+        peerName: payload.peerName
+      });
+    }
+    return Boolean(approved);
   }
 
   server.addService(proto.TransferService.service, {
@@ -268,43 +332,79 @@ export async function startServer(options = {}) {
       let tempPath = "";
       let size = 0;
       let session;
+      let approvalPromise;
+      let completed = false;
+      let processing = Promise.resolve();
       const hash = createSha256();
 
-      call.on("data", (chunk) => {
-        try {
-          session ??= requireSession(chunk.sessionId);
-          session.lastSeen = nowMs();
-          transferId ||= chunk.transferId || randomUUID();
-          fileName ||= safeFileName(chunk.fileName);
-          tempPath ||= path.join(receiveDir, ".incoming", `${transferId}.part`);
-
-          const plain = chunk.encrypted
-            ? decryptChunk(session.key, { nonce: chunk.nonce, data: chunk.data, authTag: chunk.authTag })
-            : Buffer.from(chunk.data);
-
-          fs.appendFileSync(tempPath, plain);
-          hash.update(plain);
-          size += plain.length;
-          publishTransferProgress({
-            transferId,
-            direction: "receiving",
-            fileName,
-            peerDeviceId: session.clientDeviceId,
-            peerName: session.clientName,
-            transferredBytes: size,
-            totalBytes: Number(chunk.totalSize ?? 0),
-            progress: Number(chunk.totalSize ?? 0) === 0 ? 0 : size / Number(chunk.totalSize)
-          });
-        } catch (error) {
-          call.destroy(error);
+      function fail(error) {
+        if (completed) {
+          return;
         }
+        completed = true;
+        if (tempPath && fs.existsSync(tempPath)) {
+          fs.rmSync(tempPath, { force: true });
+        }
+        callback(error);
+        call.destroy(error);
+      }
+
+      async function processChunk(chunk) {
+        session ??= requireSession(chunk.sessionId);
+        session.lastSeen = nowMs();
+        transferId ||= chunk.transferId || randomUUID();
+        fileName ||= safeFileName(chunk.fileName);
+        tempPath ||= path.join(receiveDir, ".incoming", `${transferId}.part`);
+        approvalPromise ??= requestTransferApproval({
+          session,
+          direction: "receiving",
+          fileName,
+          totalBytes: Number(chunk.totalSize ?? 0)
+        });
+        if (!(await approvalPromise)) {
+          throw new Error("사용자가 파일 수신을 거부했습니다.");
+        }
+
+        const plain = chunk.encrypted
+          ? decryptChunk(session.key, { nonce: chunk.nonce, data: chunk.data, authTag: chunk.authTag })
+          : Buffer.from(chunk.data);
+
+        fs.appendFileSync(tempPath, plain);
+        hash.update(plain);
+        size += plain.length;
+        publishTransferProgress({
+          transferId,
+          direction: "receiving",
+          fileName,
+          peerDeviceId: session.clientDeviceId,
+          peerName: session.clientName,
+          transferredBytes: size,
+          totalBytes: Number(chunk.totalSize ?? 0),
+          progress: Number(chunk.totalSize ?? 0) === 0 ? 0 : size / Number(chunk.totalSize)
+        });
+      }
+
+      call.on("data", (chunk) => {
+        call.pause?.();
+        processing = processing
+          .then(() => processChunk(chunk))
+          .catch(fail)
+          .finally(() => {
+            if (!completed) {
+              call.resume?.();
+            }
+          });
       });
 
       call.on("end", () => {
-        try {
+        processing.then(() => {
+          if (completed) {
+            return;
+          }
           if (!tempPath || !fileName) {
             throw new Error("파일 chunk를 받지 못했습니다.");
           }
+          completed = true;
           const fileId = randomUUID();
           const finalName = `${Date.now()}-${fileId}-${fileName}`;
           const finalPath = path.join(receiveDir, finalName);
@@ -342,13 +442,11 @@ export async function startServer(options = {}) {
             sha256Hex,
             stored: true
           });
-        } catch (error) {
-          callback(error);
-        }
+        }).catch(fail);
       });
     },
 
-    receiveFile(call) {
+    async receiveFile(call) {
       try {
         const session = requireSession(call.request.sessionId);
         session.lastSeen = nowMs();
@@ -360,6 +458,16 @@ export async function startServer(options = {}) {
 
         const filePath = path.join(receiveDir, entry.storedName);
         const totalSize = fs.statSync(filePath).size;
+        const approved = await requestTransferApproval({
+          session,
+          direction: "sending",
+          fileName: entry.fileName,
+          totalBytes: totalSize
+        });
+        if (!approved) {
+          call.destroy(new Error("사용자가 파일 송신을 거부했습니다."));
+          return;
+        }
         let offset = 0;
         const stream = fs.createReadStream(filePath, { highWaterMark: 64 * 1024 });
 
@@ -419,6 +527,7 @@ export async function startServer(options = {}) {
     descriptorUrl: descriptor.location,
     getConnectedClients: connectedClients,
     getKnownDevices: () => [...knownDevices.values()],
+    setKnownDeviceTrust,
     onEvent: (listener) => {
       localEvents.on("event", listener);
       return () => localEvents.off("event", listener);
@@ -430,6 +539,10 @@ export async function startServer(options = {}) {
     onTransferProgress: (listener) => {
       localEvents.on("transferProgress", listener);
       return () => localEvents.off("transferProgress", listener);
+    },
+    onTransferRequest: (listener) => {
+      localEvents.on("transferRequest", listener);
+      return () => localEvents.off("transferRequest", listener);
     },
     close: async () => {
       ssdp.close();

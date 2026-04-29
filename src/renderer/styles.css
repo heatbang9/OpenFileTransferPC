@@ -185,6 +185,42 @@ h2 {
   background: var(--mint-50);
 }
 
+.itemHeader,
+.itemActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.itemHeader strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.itemActions {
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.trustBadge {
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.trustBadge.trusted {
+  color: var(--teal-900);
+  background: var(--mint-100);
+}
+
+.trustBadge.untrusted {
+  color: #775a00;
+  background: #fff3c4;
+}
+
 .transferItem {
   gap: 8px;
 }
