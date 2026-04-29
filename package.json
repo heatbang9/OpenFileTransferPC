@@ -5,15 +5,60 @@
   "type": "module",
   "main": "./src/main.js",
   "description": "OpenFileTransfer PC app for macOS and Windows.",
+  "author": "OpenFileTransfer",
   "bin": {
     "oftpc": "./src/cli.js"
   },
   "scripts": {
     "dev": "electron .",
     "oftpc": "node ./src/cli.js",
+    "pack": "electron-builder --dir",
+    "dist:mac": "electron-builder --mac dmg zip",
+    "dist:win": "electron-builder --win nsis zip",
     "smoke": "node ./src/smoke.js",
     "test": "npm run smoke",
     "audit:prod": "npm audit --omit=dev"
+  },
+  "build": {
+    "appId": "dev.openfiletransfer.pc",
+    "productName": "OpenFileTransfer PC",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "icon": "assets/brand/openfiletransfer-icon-512.png",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "proto/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.0",
@@ -21,6 +66,7 @@
     "commander": "^14.0.2"
   },
   "devDependencies": {
-    "electron": "^39.2.7"
+    "electron": "^39.2.7",
+    "electron-builder": "^26.8.1"
   }
 }

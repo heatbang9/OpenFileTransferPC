@@ -24,6 +24,16 @@ npm run oftpc -- server start
 npm run oftpc -- client discover
 ```
 
+macOS/Windows 패키징 준비 스크립트도 포함되어 있습니다.
+
+```bash
+npm run pack
+npm run dist:mac
+npm run dist:win
+```
+
+피쳐 구현 상태와 남은 운영 작업은 [docs/feature-status.md](docs/feature-status.md)에 정리합니다.
+
 ## UI 범위
 
 - 서버 롤 시작/중지
@@ -106,7 +116,7 @@ gRPC 특성상 서버가 아무 연결도 없는 모바일 앱에 임의로 먼�
 
 ## macOS/Windows 배포 방향
 
-1단계는 Electron 개발 앱과 CLI 테스트입니다. 2단계에서 `electron-builder` 또는 Electron Forge를 붙여 다음 산출물을 만듭니다.
+Electron 개발 앱과 CLI 테스트를 기본으로 두고, 패키징은 `electron-builder`로 준비했습니다.
 
 - macOS: signed `.dmg` 또는 `.zip`, notarization
 - Windows: signed `.exe` installer
