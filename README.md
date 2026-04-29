@@ -32,7 +32,7 @@ npm run dist:mac
 npm run dist:win
 ```
 
-피쳐 구현 상태와 남은 운영 작업은 [docs/feature-status.md](docs/feature-status.md)에 정리합니다.
+PC 빌드/배포/서명 절차는 [docs/build-and-release.md](docs/build-and-release.md)에, 피쳐 구현 상태와 남은 운영 작업은 [docs/feature-status.md](docs/feature-status.md)에 정리합니다.
 
 ## UI 범위
 
